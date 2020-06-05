@@ -10,6 +10,8 @@ export class ZipEntryStream extends stream.Readable {
   private zipFile: yauzl.ZipFile | undefined;
   private openCount = 0;
   private closing: ((error?: Error | null) => void) | undefined;
+  private running = false;
+  private started = false;
 
   constructor(zipPath: string, opts?: stream.ReadableOptions) {
     super({ autoDestroy: false, ...opts, objectMode: true });
@@ -23,33 +25,43 @@ export class ZipEntryStream extends stream.Readable {
       (err, zip) => {
         if (err) {
           this.destroy(err);
-        } else {
-          this.zipFile = zip as yauzl.ZipFile;
-
-          this.zipFile.once('error', (e) => {
+        } else if (zip) {
+          zip.once('error', (e) => {
             this.destroy(e);
           });
 
-          this.zipFile.on('entry', (entry: yauzl.Entry) => {
-            this.push({
+          zip.on('entry', (entry: yauzl.Entry) => {
+            this.running = this.push({
               info: entry,
               open: this.makeOpenEntry(entry),
             });
-            this.zipFile?.readEntry();
+            if (this.running) {
+              zip.readEntry();
+            }
           });
 
-          this.zipFile.once('end', () => {
+          zip.once('end', () => {
             this.push(null);
           });
 
-          this.zipFile.readEntry();
+          this.zipFile = zip;
+
+          if (this.started) {
+            this.running = true;
+            zip.readEntry();
+          }
         }
       },
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  _read(): void {}
+  _read(): void {
+    this.started = true;
+    if (!this.running && this.zipFile) {
+      this.running = true;
+      this.zipFile.readEntry();
+    }
+  }
 
   _destroy(
     error: Error | null,
