@@ -8,8 +8,6 @@ export interface ZipEntry {
 
 export class ZipEntryStream extends stream.Readable {
   private zipFile: yauzl.ZipFile | undefined;
-  private openCount = 0;
-  private closing: ((error?: Error | null) => void) | undefined;
   private running = false;
   private started = false;
 
@@ -67,24 +65,9 @@ export class ZipEntryStream extends stream.Readable {
     error: Error | null,
     callback: (error?: Error | null) => void,
   ): void {
-    if (!this.openCount) {
-      this.zipFile?.close();
-      this.zipFile = undefined;
-      callback();
-      return;
-    }
-    if (this.closing) {
-      throw new Error(`_destroy already called`);
-    }
-    this.closing = callback;
-  }
-
-  onEntryClose(): void {
-    if (--this.openCount === 0 && this.closing && this.zipFile) {
-      this.zipFile.close();
-      this.zipFile = undefined;
-      this.closing();
-    }
+    this.zipFile?.close();
+    this.zipFile = undefined;
+    callback();
   }
 
   makeOpenEntry(entry: yauzl.Entry) {
@@ -98,9 +81,6 @@ export class ZipEntryStream extends stream.Readable {
             if (!stream) {
               return reject(new Error('unexpected null stream in callback'));
             }
-            ++this.openCount;
-            stream.once('end', () => this.onEntryClose());
-            stream.once('error', (err) => this.destroy(err));
             resolve(stream);
           });
         },
