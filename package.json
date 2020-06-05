@@ -1,6 +1,6 @@
 {
   "name": "unzip-iterable",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Thin wrapper around yauzl",
   "main": "lib/index.js",
   "repository": "https://github.com/gordonmleigh/unzip-iterable",
